@@ -7,7 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
-import { api } from "@/lib/api";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -16,30 +15,43 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [cargando, setCargando] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
     if (!email || !password) {
       setError("*Datos ingresados son incorrectos");
       return;
     }
-    setLoading(true);
+
+    setCargando(true);
     try {
-      const res = await api.login({ email, password });
-      if (res.token) {
-        localStorage.setItem("token", res.token);
-        localStorage.setItem("userName", res.nombre);
-        localStorage.setItem("userEmail", res.email);
-        toast.success("Inicio de sesión exitoso");
-        navigate("/dashboard");
-      } else {
-        setError(res.error || "*Datos ingresados son incorrectos");
+      // Le pegamos al back con el email y password
+      const response = await fetch(`${import.meta.env.VITE_API_URL ?? "http://localhost:8080"}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        setError("*Correo o contraseña incorrectos");
+        return;
       }
-    } catch {
-      setError("Error al conectar con el servidor");
+
+      const data = await response.json();
+
+      // Guardamos el token para usarlo en las demás peticiones
+      localStorage.setItem("authToken", data.token);  // ← Cambia "token" por "authToken"
+
+      toast.success("Inicio de sesión exitoso");
+      navigate("/dashboard");
+
+    } catch (err) {
+      setError("*Error al conectar con el servidor");
     } finally {
-      setLoading(false);
+      setCargando(false);
     }
   };
 
@@ -47,11 +59,13 @@ export default function Login() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm flex flex-col items-center gap-6">
         <Logo />
+
         <form onSubmit={handleSubmit} className="w-full space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">Correo</Label>
             <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="correo@ejemplo.com" />
           </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="password">Contraseña</Label>
             <div className="relative">
@@ -71,6 +85,7 @@ export default function Login() {
               </button>
             </div>
           </div>
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Checkbox id="remember" checked={remember} onCheckedChange={(v) => setRemember(v === true)} />
@@ -80,11 +95,14 @@ export default function Login() {
               ¿Olvidé mi contraseña?
             </Link>
           </div>
+
           {error && <p className="text-destructive text-xs">{error}</p>}
-          <Button type="submit" size="lg" className="w-full text-base font-semibold" disabled={loading}>
-            {loading ? "Ingresando..." : "Ingresar"}
+
+          <Button type="submit" size="lg" className="w-full text-base font-semibold" disabled={cargando}>
+            {cargando ? "Ingresando..." : "Ingresar"}
           </Button>
         </form>
+
         <p className="text-sm text-muted-foreground">
           ¿No tienes cuenta?{" "}
           <Link to="/register" className="text-primary font-medium hover:underline">
